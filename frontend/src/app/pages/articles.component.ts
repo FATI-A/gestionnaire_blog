@@ -5,6 +5,13 @@ import { Router } from '@angular/router';
 import { MsalService } from '@azure/msal-angular';
 import { PostsStore, BlogPost } from '../services/posts.store';
 import { HttpClient } from '@angular/common/http';
+import Swal from 'sweetalert2';
+
+type EditModel = {
+  title: string;
+  content: string;
+  imageUrl: string;
+};
 
 @Component({
   selector: 'app-articles-page',
@@ -13,13 +20,13 @@ import { HttpClient } from '@angular/common/http';
   template: `
     <div class="page">
       <div class="top">
-        <div class="titleBlock">
-        </div>
+        <div class="titleBlock"></div>
 
         <div class="search">
           <input class="input" [(ngModel)]="query" placeholder="Rechercher..." />
         </div>
       </div>
+
       <div *ngIf="onlyMine && minePosts.length === 0" class="emptyNice">
         <div class="emptyIcon">📝</div>
         <div class="emptyTitle">Vous n’avez encore rien publié</div>
@@ -28,7 +35,6 @@ import { HttpClient } from '@angular/common/http';
         </div>
       </div>
 
-      <!-- message normal si recherche vide -->
       <div *ngIf="!onlyMine && filtered.length === 0" class="empty">
         Aucun article trouvé.
       </div>
@@ -48,7 +54,38 @@ import { HttpClient } from '@angular/common/http';
               <span class="date">{{ formatDate(p.updatedAt || p.date) }}</span>
             </div>
 
-            <p class="content">{{ excerpt(p.content) }}</p>
+            <!-- MODE AFFICHAGE -->
+            <ng-container *ngIf="!isEditing(p); else editTpl">
+              <p class="content">{{ excerpt(p.content) }}</p>
+            </ng-container>
+
+            <!-- MODE EDITION -->
+            <ng-template #editTpl>
+              <div class="editBox">
+                <label class="label">Titre</label>
+                <input class="editInput" [(ngModel)]="editModel.title" />
+
+                <label class="label">Image URL (optionnel)</label>
+                <input class="editInput" [(ngModel)]="editModel.imageUrl" placeholder="https://..." />
+
+                <label class="label">Contenu</label>
+                <textarea class="editArea" [(ngModel)]="editModel.content" rows="10"></textarea>
+
+                <div class="editActions">
+                  <button class="btn primary" (click)="confirmSave(p)" [disabled]="saving">
+                    <i class="fa-solid fa-floppy-disk"></i>
+                    Enregistrer
+                  </button>
+
+                  <button class="btn ghost" (click)="cancelEdit()" [disabled]="saving">
+                    <i class="fa-solid fa-xmark"></i>
+                    Annuler
+                  </button>
+                </div>
+
+                <div class="error" *ngIf="errorMsg">{{ errorMsg }}</div>
+              </div>
+            </ng-template>
 
             <div class="footer">
               <div class="author">
@@ -57,6 +94,19 @@ import { HttpClient } from '@angular/common/http';
                   <div class="authorName">{{ p.authorName }}</div>
                   <div class="authorEmail">{{ p.authorEmail }}</div>
                 </div>
+              </div>
+
+              <!-- Actions seulement si c’est mon article -->
+              <div class="actions" *ngIf="canEdit(p)">
+                <button class="btn primary" (click)="startEdit(p)" [disabled]="saving || isEditing(p)">
+                  <i class="fa-solid fa-pen-to-square"></i>
+                  Modifier
+                </button>
+
+                <button class="btn danger" (click)="confirmDelete(p)" [disabled]="saving">
+                  <i class="fa-solid fa-trash"></i>
+                  Supprimer
+                </button>
               </div>
             </div>
           </div>
@@ -72,7 +122,6 @@ import { HttpClient } from '@angular/common/http';
       font-family:Segoe UI, Arial;
     }
 
-    /* ✅ Top responsive: recherche au milieu et largeur auto */
     .top{
       display:grid;
       grid-template-columns: 1fr minmax(240px, 640px) 1fr;
@@ -80,21 +129,16 @@ import { HttpClient } from '@angular/common/http';
       gap:12px;
       margin-bottom: 10px;
     }
-    .titleBlock{justify-self:start}
-    .spacer{justify-self:end}
-
-    .pageTitle{margin:0;color:#111827;font-size:34px;font-weight:900}
-    .sub{margin:6px 0 0;color:#6b7280;font-size:16px}
 
     .search{
       justify-self:center;
       width:100%;
-      max-width:640px; /* ✅ au lieu de width fixe */
+      max-width:640px;
     }
 
     .input{
       width:100%;
-      min-height:44px; /* ✅ bon sur mobile */
+      min-height:44px;
       border:1px solid #e5e7eb;
       border-radius:14px;
       padding:12px 14px;
@@ -104,8 +148,8 @@ import { HttpClient } from '@angular/common/http';
       background:#fff;
     }
     .input:focus{
-      border-color:#c7d2fe;
-      box-shadow:0 0 0 4px rgba(99,102,241,.12);
+      border-color:#2563eb;
+      box-shadow:0 0 0 4px rgba(37,99,235,.15);
     }
 
     .empty{margin-top:14px;color:#6b7280}
@@ -182,13 +226,12 @@ import { HttpClient } from '@angular/common/http';
       padding-right:6px;
     }
 
-    /* ✅ Titre + Date responsive */
     .cardTop{
       display:flex;
       justify-content:space-between;
       gap:12px;
       align-items:flex-start;
-      flex-wrap:wrap; /* ✅ autorise retour ligne */
+      flex-wrap:wrap;
     }
     .title{
       margin:0;
@@ -238,28 +281,99 @@ import { HttpClient } from '@angular/common/http';
       background:#f3f4f6;
       flex:0 0 auto;
     }
-    .authorMeta{
+
+    .actions{
       display:flex;
-      flex-direction:column;
-      line-height:1.1;
-      min-width:0;
+      gap:10px;
+      flex:0 0 auto;
     }
-    .authorName{
-      font-weight:900;
+
+    /* ✅ Boutons bleus & rouges */
+    .btn{
+      border:1px solid #e5e7eb;
+      background:#fff;
+      border-radius:12px;
+      padding:10px 12px;
+      font-weight:800;
+      cursor:pointer;
+      transition:.15s;
+      display:flex;
+      align-items:center;
+      gap:8px;
+    }
+    .btn:hover{
+      transform:translateY(-1px);
+      box-shadow:0 8px 18px rgba(0,0,0,.08);
+    }
+    .btn:disabled{
+      opacity:.6;
+      cursor:not-allowed;
+      transform:none;
+      box-shadow:none;
+    }
+
+    .btn.primary{
+      background:#2563eb;
+      border-color:#2563eb;
+      color:#fff;
+    }
+    .btn.primary:hover{
+      box-shadow:0 10px 20px rgba(37,99,235,.25);
+    }
+
+    .btn.danger{
+      background:#dc2626;
+      border-color:#dc2626;
+      color:#fff;
+    }
+    .btn.danger:hover{
+      box-shadow:0 10px 20px rgba(220,38,38,.25);
+    }
+
+    .btn.ghost{
+      background:#f3f4f6;
+      border-color:#e5e7eb;
       color:#111827;
-      font-size:clamp(14px, 2.2vw, 16px);
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-      max-width:520px;
     }
-    .authorEmail{
-      font-size:clamp(12px, 2vw, 14px);
-      color:#6b7280;
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-      max-width:520px;
+
+    /* Edit form */
+    .editBox{
+      margin-top:12px;
+      background:#f8fafc;
+      border:1px solid #eef2f7;
+      border-radius:16px;
+      padding:14px;
+    }
+    .label{
+      display:block;
+      font-weight:800;
+      color:#374151;
+      margin:10px 0 6px;
+    }
+    .editInput, .editArea{
+      width:100%;
+      box-sizing:border-box;
+      border:1px solid #e5e7eb;
+      border-radius:12px;
+      padding:10px 12px;
+      font-size:15px;
+      outline:none;
+      background:#fff;
+    }
+    .editInput:focus, .editArea:focus{
+      border-color:#2563eb;
+      box-shadow:0 0 0 4px rgba(37,99,235,.15);
+    }
+    .editActions{
+      display:flex;
+      gap:10px;
+      margin-top:12px;
+      justify-content:flex-end;
+    }
+    .error{
+      margin-top:10px;
+      color:#dc2626;
+      font-weight:800;
     }
 
     @media (max-width: 980px){
@@ -267,25 +381,38 @@ import { HttpClient } from '@angular/common/http';
       .search{justify-self:stretch; width:100%; max-width:100%;}
       .card{flex-direction:column; min-height:unset;}
       .image-wrapper{flex:none; max-width:100%; width:100%; height:260px;}
-      .authorName,.authorEmail{max-width:100%;}
     }
 
     @media (max-width: 520px){
       .cardTop{flex-direction:column; align-items:flex-start;}
       .date{margin-top:4px;}
+      .actions{width:100%; justify-content:flex-end;}
+      .editActions{flex-direction:column;}
     }
   `]
 })
 export class ArticlesPage implements OnInit {
-  constructor(private store: PostsStore, private router: Router, private msal: MsalService) {}
+  constructor(
+    private store: PostsStore,
+    private router: Router,
+    private msal: MsalService,
+    private http: HttpClient
+  ) {}
 
   query = '';
   onlyMine = false;
-
   userEmail = '';
+
+  apiBase = 'http://localhost:3000';
+
+  editingId: number | null = null;
+  editModel: EditModel = { title: '', content: '', imageUrl: '' };
+  saving = false;
+  errorMsg = '';
 
   ngOnInit(): void {
     this.onlyMine = this.router.url.startsWith('/mes-articles');
+
     const account =
       this.msal.instance.getActiveAccount() ??
       this.msal.instance.getAllAccounts()[0] ??
@@ -306,10 +433,10 @@ export class ArticlesPage implements OnInit {
     if (!q) return base;
 
     return base.filter(p =>
-      p.title.toLowerCase().includes(q) ||
-      p.content.toLowerCase().includes(q) ||
-      p.authorName.toLowerCase().includes(q) ||
-      p.authorEmail.toLowerCase().includes(q)
+      (p.title || '').toLowerCase().includes(q) ||
+      (p.content || '').toLowerCase().includes(q) ||
+      (p.authorName || '').toLowerCase().includes(q) ||
+      (p.authorEmail || '').toLowerCase().includes(q)
     );
   }
 
@@ -324,8 +451,183 @@ export class ArticlesPage implements OnInit {
   }
 
   getAvatarUrl(p: BlogPost): string {
-    const direct = (p.authorAvatarUrl || '').trim();
+    const direct = (p as any).authorAvatarUrl?.trim?.() || '';
     if (direct) return direct;
-    return `https://ui-avatars.com/api/?name=${encodeURIComponent(p.authorName || 'User')}&background=4f46e5&color=fff`;
+
+    const name = (p.authorName || 'User').trim();
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=2563eb&color=fff`;
+  }
+
+  canEdit(p: BlogPost): boolean {
+    if (!this.userEmail) return false;
+    return (p.authorEmail || '').toLowerCase() === this.userEmail;
+  }
+
+  private getId(p: BlogPost): number | null {
+    const id = (p as any).id;
+    return typeof id === 'number' ? id : null;
+  }
+
+  isEditing(p: BlogPost): boolean {
+    const id = this.getId(p);
+    return id !== null && this.editingId === id;
+  }
+
+  startEdit(p: BlogPost) {
+    if (!this.canEdit(p)) return;
+
+    const id = this.getId(p);
+    if (id === null) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Erreur',
+        text: "Impossible de modifier : l'article n'a pas d'id."
+      });
+      return;
+    }
+
+    this.errorMsg = '';
+    this.editingId = id;
+    this.editModel = {
+      title: p.title || '',
+      content: p.content || '',
+      imageUrl: (p as any).imageUrl || ''
+    };
+  }
+
+  cancelEdit() {
+    this.editingId = null;
+    this.errorMsg = '';
+    this.editModel = { title: '', content: '', imageUrl: '' };
+  }
+
+  async confirmSave(p: BlogPost) {
+    const res = await Swal.fire({
+      icon: 'question',
+      title: 'Confirmer la mise à jour ?',
+      text: `Voulez-vous enregistrer les modifications de "${p.title}" ?`,
+      showCancelButton: true,
+      confirmButtonText: 'Oui, enregistrer',
+      cancelButtonText: 'Annuler',
+      confirmButtonColor: '#2563eb'
+    });
+
+    if (res.isConfirmed) {
+      await this.saveEdit(p);
+    }
+  }
+
+  async saveEdit(p: BlogPost) {
+    if (!this.canEdit(p)) return;
+
+    const id = this.getId(p);
+    if (id === null) return;
+
+    const title = this.editModel.title.trim();
+    const content = this.editModel.content.trim();
+
+    if (!title || !content) {
+      this.errorMsg = 'Titre et contenu sont obligatoires.';
+      return;
+    }
+
+    this.saving = true;
+    this.errorMsg = '';
+
+    try {
+      const payload: any = {
+        title,
+        content,
+        imageUrl: this.editModel.imageUrl.trim()
+      };
+
+      const updated = await this.http
+        .put<BlogPost>(`${this.apiBase}/articles/${id}`, payload)
+        .toPromise();
+
+      const idx = this.store.posts.findIndex(x => (x as any).id === id);
+      if (idx >= 0) {
+        const merged = updated ? updated : ({ ...this.store.posts[idx], ...payload } as any);
+        const copy = [...this.store.posts];
+        copy[idx] = merged;
+        this.store.posts = copy;
+      }
+
+      await Swal.fire({
+        icon: 'success',
+        title: 'Mise à jour réussie',
+        text: 'Votre article a été mis à jour.',
+        confirmButtonColor: '#2563eb'
+      });
+
+      this.cancelEdit();
+    } catch (e) {
+      console.error(e);
+      await Swal.fire({
+        icon: 'error',
+        title: 'Erreur',
+        text: "Erreur lors de l'enregistrement. Vérifie l'API (PUT /articles/:id).",
+        confirmButtonColor: '#2563eb'
+      });
+    } finally {
+      this.saving = false;
+    }
+  }
+
+  async confirmDelete(p: BlogPost) {
+    const res = await Swal.fire({
+      icon: 'warning',
+      title: 'Supprimer cet article ?',
+      text: `Cette action est irréversible : "${p.title}"`,
+      showCancelButton: true,
+      confirmButtonText: 'Oui, supprimer',
+      cancelButtonText: 'Annuler',
+      confirmButtonColor: '#dc2626'
+    });
+
+    if (res.isConfirmed) {
+      await this.deletePost(p);
+    }
+  }
+
+  async deletePost(p: BlogPost) {
+    if (!this.canEdit(p)) return;
+
+    const id = this.getId(p);
+    if (id === null) {
+      await Swal.fire({
+        icon: 'error',
+        title: 'Erreur',
+        text: "Impossible de supprimer : l'article n'a pas d'id."
+      });
+      return;
+    }
+
+    this.saving = true;
+
+    try {
+      await this.http.delete(`${this.apiBase}/articles/${id}`).toPromise();
+
+      this.store.posts = this.store.posts.filter(x => (x as any).id !== id);
+
+      if (this.editingId === id) this.cancelEdit();
+
+      await Swal.fire({
+        icon: 'success',
+        title: 'Supprimé',
+        text: 'Votre article a été supprimé.',
+        confirmButtonColor: '#2563eb'
+      });
+    } catch (e) {
+      console.error(e);
+      await Swal.fire({
+        icon: 'error',
+        title: 'Erreur',
+        text: "Erreur lors de la suppression. Vérifie l'API (DELETE /articles/:id).",
+        confirmButtonColor: '#2563eb'
+      });
+    } finally {
+      this.saving = false;
+    }
   }
 }
