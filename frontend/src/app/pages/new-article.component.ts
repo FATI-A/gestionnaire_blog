@@ -236,9 +236,7 @@ export class NewArticlePage {
     this.store.create({
       title: t,
       content: c,
-      imageUrl: img || undefined,
-      authorName,
-      authorEmail
+      imageUrl: img || undefined
     });
 
     this.router.navigate(['/mes-articles']);

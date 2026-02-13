@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { MsalService } from '@azure/msal-angular';
 import { PostsStore, BlogPost } from '../services/posts.store';
+import { HttpClient } from '@angular/common/http';
 
 @Component({
   selector: 'app-articles-page',
@@ -261,7 +262,6 @@ import { PostsStore, BlogPost } from '../services/posts.store';
       max-width:520px;
     }
 
-    /* ✅ Responsive tablette */
     @media (max-width: 980px){
       .top{grid-template-columns:1fr;}
       .search{justify-self:stretch; width:100%; max-width:100%;}
@@ -270,7 +270,6 @@ import { PostsStore, BlogPost } from '../services/posts.store';
       .authorName,.authorEmail{max-width:100%;}
     }
 
-    /* ✅ Responsive mobile (date sous le titre) */
     @media (max-width: 520px){
       .cardTop{flex-direction:column; align-items:flex-start;}
       .date{margin-top:4px;}

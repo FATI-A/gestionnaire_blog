@@ -1,6 +1,7 @@
 import { Component, OnInit, OnDestroy, Inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink, RouterOutlet } from '@angular/router';
+import { HttpClient } from '@angular/common/http';
 
 import {
   MsalService,
@@ -272,13 +273,15 @@ export class AppComponent implements OnInit, OnDestroy {
   userName = '';
   userEmail = '';
   userRoles: string[] = [];
+  articles: any[] = [];
   private readonly destroying$ = new Subject<void>();
 
   constructor(
     @Inject(MSAL_GUARD_CONFIG) private msalGuardConfig: MsalGuardConfiguration,
     private msalService: MsalService,
     private msalBroadcastService: MsalBroadcastService,
-    private router: Router
+    private router: Router,
+    private http: HttpClient
   ) {}
 
   ngOnInit(): void {
@@ -295,8 +298,18 @@ export class AppComponent implements OnInit, OnDestroy {
         takeUntil(this.destroying$)
       )
       .subscribe(() => this.setLoginDisplay());
+      this.loadArticles();
   }
 
+  loadArticles() {
+    this.http.get<any[]>('http://localhost:3000/posts')
+      .subscribe(data => {
+        this.articles = data;
+        console.log("Articles chargés :", this.articles);
+      }, error => {
+        console.error("Erreur lors du chargement des articles", error);
+      });
+  }
   setLoginDisplay(): void {
     const account =
       this.msalService.instance.getActiveAccount() ??
