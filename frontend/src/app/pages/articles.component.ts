@@ -45,7 +45,7 @@ import { HttpClient } from '@angular/common/http';
           <div class="body">
             <div class="cardTop">
               <h2 class="title">{{ p.title }}</h2>
-              <span class="date">{{ formatDate(p.updatedAt || p.createdAt) }}</span>
+              <span class="date">{{ formatDate(p.updatedAt || p.date) }}</span>
             </div>
 
             <p class="content">{{ excerpt(p.content) }}</p>

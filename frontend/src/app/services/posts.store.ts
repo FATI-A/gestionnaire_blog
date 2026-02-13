@@ -10,7 +10,7 @@ export type BlogPost = {
   authorName: string;
   authorEmail: string;
   authorAvatarUrl?: string;
-  createdAt: string;
+  date: string;
   updatedAt?: string;
 };
 
@@ -40,7 +40,9 @@ export class PostsStore {
           ...post,
           authorName: post.authorName || this.userName,
           authorEmail: post.authorEmail || this.userEmail,
-          authorAvatarUrl: post.authorAvatarUrl
+          authorAvatarUrl: post.authorAvatarUrl,
+          date: post.date || new Date().toISOString(),
+          updatedAt: post.updatedAt || undefined 
         })),
       error: (err) => console.error('Erreur chargement posts :', err)
     });
@@ -61,7 +63,7 @@ export class PostsStore {
       this.posts = [
         {
           ...createdPost,
-          createdAt: now
+          date: createdPost.date || now
         },
         ...this.posts
       ];
@@ -74,7 +76,7 @@ export class PostsStore {
     const now = new Date().toISOString();
     this.posts = this.posts.map(p =>
       p.id === id
-        ? { ...p, title: patch.title, content: patch.content, imageUrl: patch.imageUrl, updatedAt: now }
+        ? { ...p, title: patch.title, content: patch.content, imageUrl: patch.imageUrl, date: now }
         : p
     );
   }
