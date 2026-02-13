@@ -10,6 +10,10 @@ Application de gestion de blog (gestionnaire_blog) avec authentification Azure A
 - Gestion des rôles (lecture/écriture)
 - Navigation conditionnelle
 
+<<<<<<< HEAD:frontend/README.md
+=======
+##  Architecture
+>>>>>>> 8880df3 (read me):README.md
 
 ## Diagramme de cas d'utilisation
 
