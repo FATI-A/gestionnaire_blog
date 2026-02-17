@@ -574,60 +574,28 @@ export class ArticlesPage implements OnInit {
     }
   }
 
-  async confirmDelete(p: BlogPost) {
-    const res = await Swal.fire({
-      icon: 'warning',
-      title: 'Supprimer cet article ?',
-      text: `Cette action est irréversible : "${p.title}"`,
-      showCancelButton: true,
-      confirmButtonText: 'Oui, supprimer',
-      cancelButtonText: 'Annuler',
-      confirmButtonColor: '#dc2626'
-    });
+ async confirmDelete(p: BlogPost) {
+  const res = await Swal.fire({
+    icon: 'warning',
+    title: 'Supprimer cet article ?',
+    text: `Cette action est irréversible : "${p.title}"`,
+    showCancelButton: true,
+    confirmButtonText: 'Oui, supprimer',
+    cancelButtonText: 'Annuler',
+    confirmButtonColor: '#dc2626'
+  });
 
-    if (res.isConfirmed) {
-      await this.deletePost(p);
-    }
-  }
-
-  async deletePost(p: BlogPost) {
-    if (!this.canEdit(p)) return;
-
-    const id = this.getId(p);
-    if (id === null) {
-      await Swal.fire({
-        icon: 'error',
-        title: 'Erreur',
-        text: "Impossible de supprimer : l'article n'a pas d'id."
-      });
-      return;
-    }
-
+  if (res.isConfirmed) {
     this.saving = true;
+    this.store.deletePost(p.id); // <-- appel au service
+    this.saving = false;
 
-    try {
-      await this.http.delete(`${this.apiBase}/articles/${id}`).toPromise();
-
-      this.store.posts = this.store.posts.filter(x => (x as any).id !== id);
-
-      if (this.editingId === id) this.cancelEdit();
-
-      await Swal.fire({
-        icon: 'success',
-        title: 'Supprimé',
-        text: 'Votre article a été supprimé.',
-        confirmButtonColor: '#2563eb'
-      });
-    } catch (e) {
-      console.error(e);
-      await Swal.fire({
-        icon: 'error',
-        title: 'Erreur',
-        text: "Erreur lors de la suppression. Vérifie l'API (DELETE /articles/:id).",
-        confirmButtonColor: '#2563eb'
-      });
-    } finally {
-      this.saving = false;
-    }
+    await Swal.fire({
+      icon: 'success',
+      title: 'Supprimé',
+      text: 'Votre article a été supprimé.',
+      confirmButtonColor: '#2563eb'
+    });
   }
+}
 }

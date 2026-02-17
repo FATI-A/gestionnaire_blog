@@ -33,29 +33,27 @@ export class PostsStore {
     this.userName = account?.name || 'Utilisateur';
   }
 
-  loadPosts() {
-    this.http.get<BlogPost[]>(this.apiUrl).subscribe({
-      next: (data) =>
-        this.posts = data.map(post => ({
-          ...post,
-          authorName: post.authorName || this.userName,
-          authorEmail: post.authorEmail || this.userEmail,
-          authorAvatarUrl: post.authorAvatarUrl,
-          date: post.date || new Date().toISOString(),
-          updatedAt: post.updatedAt || undefined 
-        })),
-      error: (err) => console.error('Erreur chargement posts :', err)
-    });
-  }
+ loadPosts() {
+  this.http.get<BlogPost[]>(this.apiUrl).subscribe({
+    next: (data) =>
+      this.posts = data.map(post => ({
+        ...post,
+        authorName: post.authorName || this.userName,
+        authorEmail: post.authorEmail || this.userEmail,
+        authorAvatarUrl: post.authorAvatarUrl,
+        date: post.date || new Date().toISOString(),
+        updatedAt: post.updatedAt || undefined 
+      })),
+    error: (err) => console.error('Erreur chargement posts :', err)
+  });
+}
 
   create(input: { title: string; content: string; imageUrl?: string }) {
-  const now = new Date().toISOString();
   const postToSend = {
     title: input.title,
     content: input.content,
-    authorName: this.userName,
-    authorEmail: this.userEmail,
-    imageUrl: input.imageUrl
+    image: input.imageUrl,
+    authorName: this.userName
   };
 
   this.http.post<BlogPost>(this.apiUrl, postToSend).subscribe({
@@ -63,7 +61,7 @@ export class PostsStore {
       this.posts = [
         {
           ...createdPost,
-          date: createdPost.date || now
+          date: createdPost.date || new Date().toISOString()
         },
         ...this.posts
       ];
@@ -81,7 +79,12 @@ export class PostsStore {
     );
   }
 
-  delete(id: string) {
-    this.posts = this.posts.filter(p => p.id !== id);
-  }
+deletePost(id: string) {
+  return this.http.delete(`${this.apiUrl}/${id}`).subscribe({
+    next: () => {
+      this.posts = this.posts.filter(p => p.id !== id);
+    },
+    error: (err) => console.error('Erreur suppression post :', err)
+  });
+}
 }
