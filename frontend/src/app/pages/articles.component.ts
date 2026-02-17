@@ -516,63 +516,50 @@ export class ArticlesPage implements OnInit {
       await this.saveEdit(p);
     }
   }
+async saveEdit(p: BlogPost) {
+  if (!this.canEdit(p)) return;
 
-  async saveEdit(p: BlogPost) {
-    if (!this.canEdit(p)) return;
+  const id = this.getId(p);
+  if (id === null) return;
 
-    const id = this.getId(p);
-    if (id === null) return;
+  const title = this.editModel.title.trim();
+  const content = this.editModel.content.trim();
 
-    const title = this.editModel.title.trim();
-    const content = this.editModel.content.trim();
-
-    if (!title || !content) {
-      this.errorMsg = 'Titre et contenu sont obligatoires.';
-      return;
-    }
-
-    this.saving = true;
-    this.errorMsg = '';
-
-    try {
-      const payload: any = {
-        title,
-        content,
-        imageUrl: this.editModel.imageUrl.trim()
-      };
-
-      const updated = await this.http
-        .put<BlogPost>(`${this.apiBase}/articles/${id}`, payload)
-        .toPromise();
-
-      const idx = this.store.posts.findIndex(x => (x as any).id === id);
-      if (idx >= 0) {
-        const merged = updated ? updated : ({ ...this.store.posts[idx], ...payload } as any);
-        const copy = [...this.store.posts];
-        copy[idx] = merged;
-        this.store.posts = copy;
-      }
-
-      await Swal.fire({
-        icon: 'success',
-        title: 'Mise à jour réussie',
-        text: 'Votre article a été mis à jour.',
-        confirmButtonColor: '#2563eb'
-      });
-
-      this.cancelEdit();
-    } catch (e) {
-      console.error(e);
-      await Swal.fire({
-        icon: 'error',
-        title: 'Erreur',
-        text: "Erreur lors de l'enregistrement. Vérifie l'API (PUT /articles/:id).",
-        confirmButtonColor: '#2563eb'
-      });
-    } finally {
-      this.saving = false;
-    }
+  if (!title || !content) {
+    this.errorMsg = 'Titre et contenu sont obligatoires.';
+    return;
   }
+
+  this.saving = true;
+  this.errorMsg = '';
+
+  try {
+    this.store.update(id.toString(), {
+      title,
+      content,
+      imageUrl: this.editModel.imageUrl.trim()
+    });
+
+    await Swal.fire({
+      icon: 'success',
+      title: 'Mise à jour réussie',
+      text: 'Votre article a été mis à jour.',
+      confirmButtonColor: '#2563eb'
+    });
+
+    this.cancelEdit();
+  } catch (e) {
+    console.error(e);
+    await Swal.fire({
+      icon: 'error',
+      title: 'Erreur',
+      text: "Erreur lors de l'enregistrement. Vérifie l'API.",
+      confirmButtonColor: '#2563eb'
+    });
+  } finally {
+    this.saving = false;
+  }
+}
 
  async confirmDelete(p: BlogPost) {
   const res = await Swal.fire({
@@ -587,7 +574,7 @@ export class ArticlesPage implements OnInit {
 
   if (res.isConfirmed) {
     this.saving = true;
-    this.store.deletePost(p.id); // <-- appel au service
+    this.store.deletePost(p.id);
     this.saving = false;
 
     await Swal.fire({

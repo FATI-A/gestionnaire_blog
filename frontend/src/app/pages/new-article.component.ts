@@ -23,12 +23,25 @@ import { PostsStore } from '../services/posts.store';
           <input class="input" [(ngModel)]="title" placeholder="Ex: Mon premier article" />
 
           <!--  Image URL -->
-          <label class="label">Image (URL)</label>
-          <input
-            class="input"
-            [(ngModel)]="imageUrl"
-            placeholder="https://images.unsplash.com/..."
-          />
+          <label class="label">Image (URL ou upload)</label>
+          <div class="input-with-button">
+            <input
+              class="input"
+              [(ngModel)]="imageUrl"
+              placeholder="https://images.unsplash.com/..."
+            />
+            <button type="button" class="upload-btn" (click)="fileInput.click()">
+              📁
+            </button>
+            <input
+              type="file"
+              accept="image/*"
+              #fileInput
+              style="display:none"
+              (change)="onFileSelected($event)"
+            />
+          </div>
+
 
           <!--  Aperçu image -->
           <div class="preview" *ngIf="imageUrl.trim()">
@@ -192,12 +205,13 @@ export class NewArticlePage {
   content = '';
   imageUrl = '';
   imgError = false;
+  uploadedFile?: File;
 
   constructor(
     private store: PostsStore,
     private router: Router,
     private msal: MsalService
-  ) {}
+  ) { }
 
   goBack() {
     this.router.navigate(['/articles']);
@@ -213,7 +227,25 @@ export class NewArticlePage {
   onImgError() {
     this.imgError = true;
   }
+  onFileSelected(event: Event) {
+    const input = event.target as HTMLInputElement;
+    if (!input.files || input.files.length === 0) return;
 
+    const file = input.files[0];
+
+    // Vérifier le type MIME pour s'assurer que c'est bien une image
+    if (!file.type.startsWith('image/')) {
+      alert('Veuillez sélectionner une image valide.');
+      return;
+    }
+
+    // Créer une URL temporaire pour l'aperçu
+    this.imageUrl = URL.createObjectURL(file);
+    this.imgError = false;
+
+    // Optionnel : stocker le fichier pour l'envoyer au backend
+    this.uploadedFile = file;
+  }
   publish() {
     const t = this.title.trim();
     const c = this.content.trim();

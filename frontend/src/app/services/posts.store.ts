@@ -33,58 +33,64 @@ export class PostsStore {
     this.userName = account?.name || 'Utilisateur';
   }
 
- loadPosts() {
-  this.http.get<BlogPost[]>(this.apiUrl).subscribe({
-    next: (data) =>
-      this.posts = data.map(post => ({
-        ...post,
-        authorName: post.authorName || this.userName,
-        authorEmail: post.authorEmail || this.userEmail,
-        authorAvatarUrl: post.authorAvatarUrl,
-        date: post.date || new Date().toISOString(),
-        updatedAt: post.updatedAt || undefined 
-      })),
-    error: (err) => console.error('Erreur chargement posts :', err)
-  });
-}
+  loadPosts() {
+    this.http.get<BlogPost[]>(this.apiUrl).subscribe({
+      next: (data) =>
+        this.posts = data.map(post => ({
+          ...post,
+          authorName: post.authorName || this.userName,
+          authorEmail: post.authorEmail || this.userEmail,
+          authorAvatarUrl: post.authorAvatarUrl,
+          date: post.date || new Date().toISOString(),
+          updatedAt: post.updatedAt || undefined
+        })),
+      error: (err) => console.error('Erreur chargement posts :', err)
+    });
+  }
 
   create(input: { title: string; content: string; imageUrl?: string }) {
-  const postToSend = {
-    title: input.title,
-    content: input.content,
-    image: input.imageUrl,
-    authorName: this.userName
-  };
+    const postToSend = {
+      title: input.title,
+      content: input.content,
+      image: input.imageUrl,
+      authorName: this.userName
+    };
 
-  this.http.post<BlogPost>(this.apiUrl, postToSend).subscribe({
-    next: (createdPost) => {
-      this.posts = [
-        {
-          ...createdPost,
-          date: createdPost.date || new Date().toISOString()
-        },
-        ...this.posts
-      ];
-    },
-    error: (err) => console.error('Erreur création post :', err)
-  });
-}
+    this.http.post<BlogPost>(this.apiUrl, postToSend).subscribe({
+      next: (createdPost) => {
+        this.posts = [
+          {
+            ...createdPost,
+            date: createdPost.date || new Date().toISOString()
+          },
+          ...this.posts
+        ];
+      },
+      error: (err) => console.error('Erreur création post :', err)
+    });
+  }
 
   update(id: string, patch: { title: string; content: string; imageUrl?: string }) {
     const now = new Date().toISOString();
-    this.posts = this.posts.map(p =>
-      p.id === id
-        ? { ...p, title: patch.title, content: patch.content, imageUrl: patch.imageUrl, date: now }
-        : p
-    );
+
+    this.http.put(`${this.apiUrl}/${id}`, {
+      title: patch.title,
+      content: patch.content,
+      image: patch.imageUrl
+    }).subscribe({
+      next: () => {
+        this.loadPosts();
+      },
+      error: (err) => console.error('Erreur mise à jour post :', err)
+    });
   }
 
-deletePost(id: string) {
-  return this.http.delete(`${this.apiUrl}/${id}`).subscribe({
-    next: () => {
-      this.posts = this.posts.filter(p => p.id !== id);
-    },
-    error: (err) => console.error('Erreur suppression post :', err)
-  });
-}
+  deletePost(id: string) {
+    return this.http.delete(`${this.apiUrl}/${id}`).subscribe({
+      next: () => {
+        this.posts = this.posts.filter(p => p.id !== id);
+      },
+      error: (err) => console.error('Erreur suppression post :', err)
+    });
+  }
 }
