@@ -24,23 +24,26 @@ import { PostsStore } from '../services/posts.store';
 
           <!--  Image URL -->
           <label class="label">Image (URL ou upload)</label>
-          <div class="input-with-button">
-            <input
-              class="input"
-              [(ngModel)]="imageUrl"
-              placeholder="https://images.unsplash.com/..."
-            />
-            <button type="button" class="upload-btn" (click)="fileInput.click()">
-              📁
-            </button>
-            <input
-              type="file"
-              accept="image/*"
-              #fileInput
-              style="display:none"
-              (change)="onFileSelected($event)"
-            />
-          </div>
+
+        <div class="input-with-button">
+          <input
+            class="input"
+            [(ngModel)]="imageUrl"
+            placeholder="https://images.unsplash.com/..."
+          />
+        
+          <button type="button" class="upload-btn" (click)="fileInput.click()">
+            📁
+          </button>
+        
+          <input
+            type="file"
+            accept="image/*"
+            #fileInput
+            style="display:none"
+            (change)="onFileSelected($event)"
+          />
+        </div>
 
 
           <!--  Aperçu image -->
@@ -107,7 +110,28 @@ import { PostsStore } from '../services/posts.store';
       color:#374151;
       font-size:16px;
     }
+    .input-with-button {
+  position: relative;
+  width: 100%;
+}
 
+  .input-with-button .input {
+    width: 100%;
+    padding-right: 45px;
+    height: 40px;
+    box-sizing: border-box;
+  }
+
+  .upload-btn {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 18px;
+  }
     .input{
       width:98%;
       border:1px solid #e5e7eb;
