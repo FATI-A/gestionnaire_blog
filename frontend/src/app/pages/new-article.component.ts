@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { MsalService } from '@azure/msal-angular';
+import { HttpClient } from '@angular/common/http';
 
 import { PostsStore } from '../services/posts.store';
 
@@ -23,30 +24,29 @@ import { PostsStore } from '../services/posts.store';
           <input class="input" [(ngModel)]="title" placeholder="Ex: Mon premier article" />
 
           <!--  Image URL -->
-          <label class="label">Image (URL ou upload)</label>
+          <label class="label">Image (Cloudinary ou upload)</label>
 
-        <div class="input-with-button">
-          <input
-            class="input"
-            [(ngModel)]="imageUrl"
-            placeholder="https://images.unsplash.com/..."
-          />
-        
-          <button type="button" class="upload-btn" (click)="fileInput.click()">
-            📁
-          </button>
-        
-          <input
-            type="file"
-            accept="image/*"
-            #fileInput
-            style="display:none"
-            (change)="onFileSelected($event)"
-          />
-        </div>
+          <div class="input-with-button" style="display:flex; gap:5px; align-items:center;">
+            <input class="input" [(ngModel)]="imageUrl" placeholder="https://..." readonly />
 
+            <button type="button" class="upload-btn cloudinary" (click)="openCloudinarySelector()">
+              📁
+            </button>
 
-          <!--  Aperçu image -->
+            <button type="button" class="upload-btn local" (click)="localFileInput.click()">
+                  <i class="fa fa-file"></i>
+                </button>
+
+            <input type="file" accept="image/*" #localFileInput style="display:none" (change)="onFileSelected($event)" />
+          </div>
+
+          <div *ngIf="cloudSelectorVisible" class="cloud-selector" style="border:1px solid #ccc; padding:10px; max-height:200px; overflow-y:auto; margin-top:5px;">
+            <div *ngFor="let img of cloudImages" style="display:inline-block; margin:5px; cursor:pointer;" (click)="selectCloudImage(img)">
+              <img [src]="img" style="width:100px; height:100px; object-fit:cover;">
+            </div>
+          </div>
+
+          <!-- Aperçu image -->
           <div class="preview" *ngIf="imageUrl.trim()">
             <img [src]="imageUrl" alt="Aperçu image" (error)="onImgError()" />
             <div class="previewHint" *ngIf="imgError">
@@ -102,6 +102,22 @@ import { PostsStore } from '../services/posts.store';
       color:#111827;
     }
 
+.upload-btn.cloudinary {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.upload-btn.local {
+  border: none;
+  background-color: white;
+  color: gray;            
+  cursor: pointer;
+  font-size: 18px;
+  padding: 0 10px;
+  border-radius: 4px;
+}
     .label{
       display:block;
       margin-top:18px;
@@ -123,7 +139,6 @@ import { PostsStore } from '../services/posts.store';
   }
 
   .upload-btn {
-    position: absolute;
     right: 8px;
     top: 50%;
     transform: translateY(-50%);
@@ -145,7 +160,6 @@ import { PostsStore } from '../services/posts.store';
       box-shadow: 0 0 0 5px rgba(99,102,241,0.14);
     }
 
-    /* ✅ Preview image */
     .preview{
       margin-top: 12px;
       width: 98%;
@@ -230,13 +244,24 @@ export class NewArticlePage {
   imageUrl = '';
   imgError = false;
   uploadedFile?: File;
+  cloudImages: string[] = [];
+  cloudSelectorVisible = false;
+
 
   constructor(
     private store: PostsStore,
     private router: Router,
+    private http: HttpClient,
     private msal: MsalService
   ) { }
 
+  ngOnInit(): void {
+
+    this.http.get<string[]>('http://localhost:3000/cloud-images').subscribe({
+      next: (urls) => this.cloudImages = urls,
+      error: (err) => console.error('Erreur récupération images Cloudinary :', err)
+    });
+  }
   goBack() {
     this.router.navigate(['/articles']);
   }
@@ -251,23 +276,26 @@ export class NewArticlePage {
   onImgError() {
     this.imgError = true;
   }
+  openCloudinarySelector() {
+    this.cloudSelectorVisible = !this.cloudSelectorVisible;
+  }
+
+  selectCloudImage(url: string) {
+    this.imageUrl = url;
+    this.cloudSelectorVisible = false;
+  }
+
   onFileSelected(event: Event) {
     const input = event.target as HTMLInputElement;
     if (!input.files || input.files.length === 0) return;
 
     const file = input.files[0];
-
-    // Vérifier le type MIME pour s'assurer que c'est bien une image
     if (!file.type.startsWith('image/')) {
       alert('Veuillez sélectionner une image valide.');
       return;
     }
-
-    // Créer une URL temporaire pour l'aperçu
     this.imageUrl = URL.createObjectURL(file);
     this.imgError = false;
-
-    // Optionnel : stocker le fichier pour l'envoyer au backend
     this.uploadedFile = file;
   }
   publish() {

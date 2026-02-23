@@ -6,6 +6,7 @@ import { MsalService } from '@azure/msal-angular';
 import { PostsStore, BlogPost } from '../services/posts.store';
 import { HttpClient } from '@angular/common/http';
 import Swal from 'sweetalert2';
+import { UploadService } from '../services/upload.service';
 
 type EditModel = {
   title: string;
@@ -65,9 +66,30 @@ type EditModel = {
                 <label class="label">Titre</label>
                 <input class="editInput" [(ngModel)]="editModel.title" />
 
-                <label class="label">Image URL (optionnel)</label>
-                <input class="editInput" [(ngModel)]="editModel.imageUrl" placeholder="https://..." />
+               <label class="label">Image URL (optionnel)</label>
+                <div class="input-with-button">
+                <input class="editInput" [(ngModel)]="editModel.imageUrl" placeholder="https://..." readonly />
 
+                <!-- Bouton Cloudinary -->
+                <button type="button" class="upload-btn cloudinary" (click)="openCloudinarySelector()">
+                  📁
+                </button>
+
+                <button type="button" class="upload-btn local" (click)="localFileInput.click()">
+                  <i class="fa fa-file"></i>
+                </button>
+
+                <input type="file" accept="image/*" #localFileInput style="display:none" (change)="onFileSelected($event)" />
+              </div>
+                <!-- Sélecteur Cloudinary -->
+                <div *ngIf="cloudSelectorVisible" class="cloud-selector" style="border:1px solid #ccc; padding:10px; max-height:200px; overflow-y:auto; margin-top:5px;">
+                  <div *ngFor="let img of cloudImages" style="display:inline-block; margin:5px; cursor:pointer;" (click)="selectCloudImage(img)">
+                    <img [src]="img" style="width:100px; height:100px; object-fit:cover;">
+                  </div>
+                </div>
+
+                <!-- Aperçu de l'image sélectionnée -->
+                <img *ngIf="editModel.imageUrl" [src]="editModel.imageUrl" style="max-width:200px; margin-top:10px;">
                 <label class="label">Contenu</label>
                 <textarea class="editArea" [(ngModel)]="editModel.content" rows="10"></textarea>
 
@@ -96,7 +118,6 @@ type EditModel = {
                 </div>
               </div>
 
-              <!-- Actions seulement si c’est mon article -->
               <div class="actions" *ngIf="canEdit(p)">
                 <button class="btn primary" (click)="startEdit(p)" [disabled]="saving || isEditing(p)">
                   <i class="fa-solid fa-pen-to-square"></i>
@@ -135,7 +156,43 @@ type EditModel = {
       width:100%;
       max-width:640px;
     }
+    .input-with-button {
+  position: relative;
+  width: 100%;
+  display: flex;    
+  gap: 5px;          
+  align-items: center;
+}
 
+.input-with-button .editInput {
+  flex: 1;
+  height: 40px;
+  box-sizing: border-box;
+  padding-right: 10px;
+}
+
+.upload-btn.cloudinary {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.upload-btn.local {
+  background-color: white;
+  color: gray;            
+  border: 1px solid #ccc; 
+  border-radius: 6px;   
+  padding: 10px 15px;  
+  font-size: 20px;     
+  cursor: pointer; 
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.upload-btn.local:hover {
+  background-color: #f0f0f0;
+  color: #555;  
+}
     .input{
       width:100%;
       min-height:44px;
@@ -288,7 +345,6 @@ type EditModel = {
       flex:0 0 auto;
     }
 
-    /* ✅ Boutons bleus & rouges */
     .btn{
       border:1px solid #e5e7eb;
       background:#fff;
@@ -394,14 +450,18 @@ type EditModel = {
 export class ArticlesPage implements OnInit {
   constructor(
     private store: PostsStore,
+    private UploadService: UploadService,
     private router: Router,
     private msal: MsalService,
     private http: HttpClient
-  ) {}
+  ) { }
 
   query = '';
   onlyMine = false;
   userEmail = '';
+  imageUrl: string = '';
+  cloudImages: string[] = [];
+  cloudSelectorVisible = false;
 
   apiBase = 'http://localhost:3000';
 
@@ -419,6 +479,30 @@ export class ArticlesPage implements OnInit {
       null;
 
     this.userEmail = (account?.username || '').toLowerCase();
+
+    this.http.get<string[]>('http://localhost:3000/cloud-images').subscribe({
+      next: (urls) => this.cloudImages = urls,
+      error: (err) => console.error('Erreur récupération images Cloudinary :', err)
+    });
+  }
+
+  openCloudinarySelector() {
+    this.cloudSelectorVisible = !this.cloudSelectorVisible;
+  }
+  selectCloudImage(url: string) {
+    this.editModel.imageUrl = url;
+    this.cloudSelectorVisible = false;
+  }
+  onFileSelected(event: any) {
+    const file: File = event.target.files[0];
+    if (file) {
+      this.UploadService.uploadImage(file).subscribe({
+        next: (res: any) => {
+          this.editModel.imageUrl = res.secure_url;
+        },
+        error: (err) => console.error('Erreur upload image :', err)
+      });
+    }
   }
 
   get minePosts(): BlogPost[] {
@@ -516,73 +600,73 @@ export class ArticlesPage implements OnInit {
       await this.saveEdit(p);
     }
   }
-async saveEdit(p: BlogPost) {
-  if (!this.canEdit(p)) return;
+  async saveEdit(p: BlogPost) {
+    if (!this.canEdit(p)) return;
 
-  const id = this.getId(p);
-  if (id === null) return;
+    const id = this.getId(p);
+    if (id === null) return;
 
-  const title = this.editModel.title.trim();
-  const content = this.editModel.content.trim();
+    const title = this.editModel.title.trim();
+    const content = this.editModel.content.trim();
 
-  if (!title || !content) {
-    this.errorMsg = 'Titre et contenu sont obligatoires.';
-    return;
-  }
+    if (!title || !content) {
+      this.errorMsg = 'Titre et contenu sont obligatoires.';
+      return;
+    }
 
-  this.saving = true;
-  this.errorMsg = '';
-
-  try {
-    this.store.update(id.toString(), {
-      title,
-      content,
-      imageUrl: this.editModel.imageUrl.trim()
-    });
-
-    await Swal.fire({
-      icon: 'success',
-      title: 'Mise à jour réussie',
-      text: 'Votre article a été mis à jour.',
-      confirmButtonColor: '#2563eb'
-    });
-
-    this.cancelEdit();
-  } catch (e) {
-    console.error(e);
-    await Swal.fire({
-      icon: 'error',
-      title: 'Erreur',
-      text: "Erreur lors de l'enregistrement. Vérifie l'API.",
-      confirmButtonColor: '#2563eb'
-    });
-  } finally {
-    this.saving = false;
-  }
-}
-
- async confirmDelete(p: BlogPost) {
-  const res = await Swal.fire({
-    icon: 'warning',
-    title: 'Supprimer cet article ?',
-    text: `Cette action est irréversible : "${p.title}"`,
-    showCancelButton: true,
-    confirmButtonText: 'Oui, supprimer',
-    cancelButtonText: 'Annuler',
-    confirmButtonColor: '#dc2626'
-  });
-
-  if (res.isConfirmed) {
     this.saving = true;
-    this.store.deletePost(p.id);
-    this.saving = false;
+    this.errorMsg = '';
 
-    await Swal.fire({
-      icon: 'success',
-      title: 'Supprimé',
-      text: 'Votre article a été supprimé.',
-      confirmButtonColor: '#2563eb'
-    });
+    try {
+      this.store.update(id.toString(), {
+        title,
+        content,
+        imageUrl: this.editModel.imageUrl.trim()
+      });
+
+      await Swal.fire({
+        icon: 'success',
+        title: 'Mise à jour réussie',
+        text: 'Votre article a été mis à jour.',
+        confirmButtonColor: '#2563eb'
+      });
+
+      this.cancelEdit();
+    } catch (e) {
+      console.error(e);
+      await Swal.fire({
+        icon: 'error',
+        title: 'Erreur',
+        text: "Erreur lors de l'enregistrement. Vérifie l'API.",
+        confirmButtonColor: '#2563eb'
+      });
+    } finally {
+      this.saving = false;
+    }
   }
-}
+
+  async confirmDelete(p: BlogPost) {
+    const res = await Swal.fire({
+      icon: 'warning',
+      title: 'Supprimer cet article ?',
+      text: `Cette action est irréversible : "${p.title}"`,
+      showCancelButton: true,
+      confirmButtonText: 'Oui, supprimer',
+      cancelButtonText: 'Annuler',
+      confirmButtonColor: '#dc2626'
+    });
+
+    if (res.isConfirmed) {
+      this.saving = true;
+      this.store.deletePost(p.id);
+      this.saving = false;
+
+      await Swal.fire({
+        icon: 'success',
+        title: 'Supprimé',
+        text: 'Votre article a été supprimé.',
+        confirmButtonColor: '#2563eb'
+      });
+    }
+  }
 }
